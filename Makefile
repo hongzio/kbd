@@ -1,6 +1,6 @@
 INSTALL_DIR := $(HOME)/Library/Input Methods
 
-.PHONY: build test install uninstall log
+.PHONY: build test install uninstall log release
 
 build:
 	sh scripts/build-app.sh
@@ -21,6 +21,10 @@ install: build
 uninstall:
 	-killall kbd
 	rm -rf "$(INSTALL_DIR)/kbd.app"
+
+release:
+	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z" >&2; exit 1; }
+	sh scripts/release.sh $(VERSION)
 
 log:
 	log stream --level info --predicate 'subsystem == "com.hongzio.inputmethod.kbd"'

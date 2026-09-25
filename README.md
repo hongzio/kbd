@@ -18,29 +18,38 @@
 
 ## 요구 사항
 
-- macOS 14 이상
+- macOS 14 이상 (Apple Silicon, Intel)
 - 소스에서 빌드: Xcode Command Line Tools (Xcode 불필요)
 
 ## 설치
 
-현재는 소스에서 빌드해 설치합니다.
+```sh
+brew trust hongzio/tap   # Homebrew 7은 신뢰하지 않은 서드파티 탭을 불러오지 않습니다
+brew tap hongzio/tap
+brew install --cask kbd
+```
+
+`~/Library/Input Methods/kbd.app`에 설치됩니다. 그다음:
+
+1. 시스템 설정 → 키보드 → 입력 소스 → 편집 → `+` → 한국어 → **kbd** 추가. 목록에 kbd가 보이지 않으면 로그아웃 후 다시 로그인하세요.
+2. 한/영 상태는 kbd의 메뉴 막대 아이콘(`한` / `A`)으로 표시됩니다. 시스템 입력 메뉴 아이콘은 항상 `KBD`로 고정되므로, 입력 소스 설정에서 "메뉴 막대에서 입력 메뉴 보기"를 꺼도 됩니다.
+3. 새 macOS에서 kbd 아이콘이 보이지 않으면 시스템 설정 → 메뉴 막대에서 kbd를 허용합니다.
+
+kbd는 Developer ID 없이 ad-hoc 서명으로 배포합니다. cask가 설치할 때 quarantine 속성을 지웁니다.
+
+### 소스에서 설치
 
 ```sh
 make install
 ```
 
-`~/Library/Input Methods/kbd.app`에 설치되고 시스템에 입력기로 등록됩니다. 그다음:
-
-1. 시스템 설정 → 키보드 → 입력 소스 → 편집 → `+` → 한국어 → **kbd** 추가
-2. 한/영 상태는 kbd의 메뉴 막대 아이콘(`한` / `A`)으로 표시됩니다. 시스템 입력 메뉴 아이콘은 항상 `KBD`로 고정되므로, 입력 소스 설정에서 "메뉴 막대에서 입력 메뉴 보기"를 꺼도 됩니다.
-3. 새 macOS에서 kbd 아이콘이 보이지 않으면 시스템 설정 → 메뉴 막대에서 kbd를 허용합니다.
-
-입력 소스 목록에 kbd가 보이지 않으면 로그아웃 후 다시 로그인하세요.
+빌드해서 같은 위치에 설치하고 시스템에 입력기로 등록합니다. 이후 과정은 위와 같습니다.
 
 ### 제거
 
 ```sh
-make uninstall
+brew uninstall --cask kbd          # --zap을 붙이면 설정(~/.config/kbd)까지 지웁니다
+make uninstall                     # 소스에서 설치한 경우
 ```
 
 시스템 설정의 입력 소스 목록에서도 kbd를 삭제하세요.
@@ -165,6 +174,7 @@ make build     # build/kbd.app 생성 (ad-hoc 서명)
 make test      # 단위 테스트 (Swift Testing)
 make install   # 빌드 후 ~/Library/Input Methods에 설치, 등록, 재시작
 make log       # kbd 로그 실시간 보기
+make release VERSION=0.1.0   # 태그, GitHub 릴리스(universal 앱), 탭의 cask 갱신
 ```
 
 | 경로 | 내용 |
@@ -173,6 +183,7 @@ make log       # kbd 로그 실시간 보기
 | `Sources/KbdConfig` | `config.toml` 모델, 파싱, 검증, IPC 요청/응답 정의 |
 | `Sources/kbd` | 입력기 본체: InputMethodKit 컨트롤러, 모드 상태, HID 리매핑, 설정 감시, 소켓 서버, 메뉴 막대 아이콘 |
 | `Tests/` | `KbdCore`, `KbdConfig` 단위 테스트 |
-| `scripts/` | 앱 번들 조립, 아이콘 생성, 입력기 등록 |
+| `scripts/` | 앱 번들 조립, 아이콘 생성, 입력기 등록, 릴리스 |
+| `packaging/` | Homebrew cask 템플릿 (`hongzio/homebrew-tap`의 `Casks/kbd.rb`) |
 
 Command Line Tools만 설치된 환경에서는 원격 패키지 의존성이 있을 때 `swift test`가 Swift Testing 매크로 플러그인을 찾지 못합니다. `make test`는 플러그인을 직접 지정해 이를 우회합니다.
