@@ -74,6 +74,28 @@ public enum ConfigParser {
                 policy.onActivate = onActivate
             }
             policy.escape = app.escape
+            for (spec, text) in app.commitKeys ?? [:] {
+                let at = "apps.\"\(bundleID)\".commit_keys.\"\(spec)\""
+                guard let trigger = Config.KeyTrigger(spec) else {
+                    let keys = Config.KeyTrigger.Key.allCases.map(\.rawValue).joined(separator: ", ")
+                    errors.append("\(at): 키 형식이 올바르지 않습니다. [shift+][ctrl+][alt+][cmd+]키, 키: \(keys)")
+                    continue
+                }
+                guard !text.isEmpty else {
+                    errors.append("\(at): 보낼 문자열이 비어 있습니다")
+                    continue
+                }
+                guard policy.commitKeys[trigger] == nil else {
+                    errors.append("\(at): 같은 키가 중복되었습니다")
+                    continue
+                }
+                policy.commitKeys[trigger] = text
+            }
+            if let composition = value("apps.\"\(bundleID)\".composition", app.composition,
+                                       Config.Composition.init(rawValue:),
+                                       expected: Config.Composition.allCases.map(\.rawValue)) {
+                policy.composition = composition
+            }
             config.apps[bundleID] = policy
         }
 
@@ -285,13 +307,17 @@ private struct RawMode: Decodable {
 private struct RawApp: Decodable {
     var onActivate: String?
     var escape: Bool?
+    var composition: String?
+    var commitKeys: [String: String]?
     var unknownKeys: [String]
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
         onActivate = try c.decodeIfPresent(String.self, forKey: "on_activate")
         escape = try c.decodeIfPresent(Bool.self, forKey: "escape")
-        unknownKeys = unknown(c, known: ["on_activate", "escape"])
+        composition = try c.decodeIfPresent(String.self, forKey: "composition")
+        commitKeys = try c.decodeIfPresent([String: String].self, forKey: "commit_keys")
+        unknownKeys = unknown(c, known: ["on_activate", "escape", "composition", "commit_keys"])
     }
 }
 

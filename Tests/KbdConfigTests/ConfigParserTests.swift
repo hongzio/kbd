@@ -17,6 +17,10 @@ struct ConfigParserTests {
         #expect(parsed.config.escape.enabled == false)
         #expect(parsed.config.escapeEnabled(for: "com.mitchellh.ghostty"))
         #expect(!parsed.config.escapeEnabled(for: "ru.keepcoder.Telegram"))
+        #expect(parsed.config.compatibility(for: "com.mitchellh.ghostty") == .init(
+            composition: .marked,
+            commitKeys: [.init(.enter): "\r", .init(.enter, .shift): "\n", .init(.tab): "\t", .init(.escape): "\u{1B}"]
+        ))
     }
 
     @Test func fullConfig() throws {
@@ -108,6 +112,72 @@ struct ConfigParserTests {
         } throws: { error in
             let message = (error as! ConfigError).messages.first ?? ""
             return message.hasPrefix("TOML 문법 오류") && message.contains("Line 2")
+        }
+    }
+
+    @Test func compatibilityDefaults() {
+        // No hidden per-app defaults: everything comes from the file.
+        let defaults = Config()
+        #expect(defaults.compatibility(for: "com.mitchellh.ghostty") == .init(composition: .auto, commitKeys: [:]))
+        #expect(defaults.compatibility(for: nil) == .init(composition: .auto, commitKeys: [:]))
+    }
+
+    @Test func commitKeys() throws {
+        let config = try ConfigParser.parse(#"""
+        [apps."com.example"]
+        composition = "marked"
+        [apps."com.example".commit_keys]
+        enter = "\r"
+        "shift+enter" = "\n"
+        "ctrl+shift+tab" = "x"
+        escape = "\u001B"
+        """#).config
+        let compat = config.compatibility(for: "com.example")
+        #expect(compat.composition == .marked)
+        #expect(compat.commitKeys == [
+            .init(.enter): "\r",
+            .init(.enter, .shift): "\n",
+            .init(.tab, [.ctrl, .shift]): "x",
+            .init(.escape): "\u{1B}",
+        ])
+    }
+
+    @Test func invalidCommitKeys() {
+        #expect {
+            try ConfigParser.parse(#"""
+            [apps."com.example".commit_keys]
+            "hyper+enter" = "x"
+            space = "x"
+            "shift+shift+tab" = "x"
+            tab = ""
+            """#)
+        } throws: { error in
+            let messages = (error as! ConfigError).messages
+            return messages.count == 4
+                && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."hyper+enter""#) }
+                && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."space""#) }
+                && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."shift+shift+tab""#) }
+                && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."tab": 보낼 문자열이 비어"#) }
+        }
+    }
+
+    @Test func duplicateTriggerSpellings() {
+        #expect {
+            try ConfigParser.parse(#"""
+            [apps."com.example".commit_keys]
+            "shift+ctrl+enter" = "a"
+            "ctrl+shift+enter" = "b"
+            """#)
+        } throws: { error in
+            (error as! ConfigError).messages.contains { $0.contains("중복") }
+        }
+    }
+
+    @Test func invalidComposition() {
+        #expect {
+            try ConfigParser.parse("[apps.\"com.example\"]\ncomposition = \"underline\"")
+        } throws: { error in
+            (error as! ConfigError).messages.first?.hasPrefix("apps.\"com.example\".composition: \"underline\"") == true
         }
     }
 }

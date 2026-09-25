@@ -1,6 +1,6 @@
 public enum ConfigTemplate {
     /// Written when the user opens the config from the menu and no file exists yet.
-    public static let text = """
+    public static let text = #"""
     # kbd 설정 파일입니다. 저장하면 바로 반영됩니다.
 
     [toggle]
@@ -29,8 +29,23 @@ public enum ConfigTemplate {
     #   on_activate = "remember"  앱마다 마지막 모드를 기억 (기본값)
     #   on_activate = "en" | "ko"  앱이 활성화될 때마다 이 모드로 시작
     #   escape = true | false      [escape].enabled를 이 앱에서만 바꿈
+    #   composition = "auto" | "inline" | "marked"
+    #       조합 중인 글자 표시 방식. inline은 실제 텍스트로 넣고 바꿔치기(시스템 한국어
+    #       입력기와 같음, Enter 전송 앱에서 한 번에 동작), marked는 조합 표시. auto(기본)는
+    #       첫 키에서 앱이 바꿔치기를 지원하는지 확인해 고릅니다.
+    #   commit_keys = { "키" = "문자열", ... }
+    #       조합을 끝낸 키를 버리는 앱용 우회. 조합 중 이 키를 누르면 확정된 글자 뒤에 문자열을
+    #       붙여 한 번에 보내고 키는 소비합니다. 키: [shift+][ctrl+][alt+][cmd+]enter|tab|escape
+    #
+    # Ghostty: 터미널이라 바꿔치기가 불가능하고, 조합을 끝낸 키를 버립니다(ghostty#14272).
     [apps."com.mitchellh.ghostty"]
     escape = true
+    composition = "marked"
+    [apps."com.mitchellh.ghostty".commit_keys]
+    enter = "\r"
+    "shift+enter" = "\n"     # 줄바꿈(LF): Claude Code 등에서 제출 없이 줄바꿈
+    tab = "\t"
+    escape = "\u001B"
 
     [apps."com.googlecode.iterm2"]
     escape = true
@@ -61,5 +76,5 @@ public enum ConfigTemplate {
     # [ipc.socket.requests]
     # "leave-insert" = { action = "set en", reply = "ok {result}" }
 
-    """
+    """#
 }

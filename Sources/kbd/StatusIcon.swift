@@ -41,6 +41,7 @@ final class StatusIcon: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem(title: "kbd — \(mode)", action: nil, keyEquivalent: ""))
 
         let problems = ConfigStore.shared.problems + IPCServer.shared.problems
+            + [ToggleHotKey.shared.problem].compactMap { $0 }
         if !problems.isEmpty {
             menu.addItem(.separator())
             for problem in problems {

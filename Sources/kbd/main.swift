@@ -19,6 +19,11 @@ signal(SIGPIPE, SIG_IGN)
 ConfigStore.shared.observe { config in
     let toggle = config.toggle
     HIDRemapper.shared.setMapping(from: toggle.needsRemap ? toggle.key : nil, to: toggle.remapTo)
+    ToggleHotKey.shared.register(keyCode: toggle.keyCode)
+}
+ToggleHotKey.shared.onPress = {
+    InputController.commitActiveComposition()
+    ModeState.shared.set(ModeState.shared.mode.toggled)
 }
 // Every load, not just changes: apply() is idempotent and retries sockets that failed before.
 ConfigStore.shared.observeLoad {
@@ -35,6 +40,7 @@ signal(SIGTERM, SIG_IGN)
 let termination = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
 termination.setEventHandler {
     HIDRemapper.shared.remove()
+    ToggleHotKey.shared.unregister()
     IPCServer.shared.closeAll()
     exit(0)
 }

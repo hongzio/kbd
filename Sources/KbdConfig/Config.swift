@@ -54,6 +54,80 @@ public struct Config: Equatable, Sendable {
         public var onActivate = OnActivate.remember
         /// Overrides `escape.enabled` for this app.
         public var escape: Bool?
+        /// How the syllable being composed is shown.
+        public var composition = Composition.auto
+        /// For apps that drop the key that ended a composition (e.g. Ghostty): when one of these
+        /// keys ends it, its text is sent along with the committed syllable and the key is consumed.
+        public var commitKeys: [KeyTrigger: String] = [:]
+
+        public init(onActivate: OnActivate = .remember, escape: Bool? = nil,
+                    composition: Composition = .auto, commitKeys: [KeyTrigger: String] = [:]) {
+            self.onActivate = onActivate
+            self.escape = escape
+            self.composition = composition
+            self.commitKeys = commitKeys
+        }
+    }
+
+    /// `marked`: the syllable is marked text until committed (works everywhere, but apps see a
+    /// composition in progress when e.g. Enter arrives). `inline`: the syllable is real text replaced
+    /// on every keystroke, like the system Korean IM in text views. `auto`: probe the client with the
+    /// first keystroke and use inline when it can read the text back.
+    public enum Composition: String, CaseIterable, Sendable {
+        case auto
+        case inline
+        case marked
+    }
+
+    /// A key plus exact modifiers, written as e.g. `enter`, `shift+enter`, `ctrl+tab`.
+    public struct KeyTrigger: Hashable, Sendable {
+        public enum Key: String, CaseIterable, Sendable {
+            case enter  // Return and keypad Enter
+            case tab
+            case escape
+        }
+
+        public struct Modifiers: OptionSet, Hashable, Sendable {
+            public let rawValue: Int
+            public init(rawValue: Int) { self.rawValue = rawValue }
+            public static let shift = Modifiers(rawValue: 1 << 0)
+            public static let ctrl = Modifiers(rawValue: 1 << 1)
+            public static let alt = Modifiers(rawValue: 1 << 2)
+            public static let cmd = Modifiers(rawValue: 1 << 3)
+
+            static let names: [(String, Modifiers)] = [("shift", .shift), ("ctrl", .ctrl), ("alt", .alt), ("cmd", .cmd)]
+        }
+
+        public var key: Key
+        public var modifiers: Modifiers
+
+        public init(_ key: Key, _ modifiers: Modifiers = []) {
+            self.key = key
+            self.modifiers = modifiers
+        }
+
+        /// Parses `shift+enter`; modifiers in any order, each at most once.
+        init?(_ spec: String) {
+            var parts = spec.lowercased().split(separator: "+", omittingEmptySubsequences: false).map(String.init)
+            guard let keyName = parts.popLast(), let key = Key(rawValue: keyName) else { return nil }
+            var modifiers: Modifiers = []
+            for part in parts {
+                guard let modifier = Modifiers.names.first(where: { $0.0 == part })?.1,
+                      !modifiers.contains(modifier) else { return nil }
+                modifiers.insert(modifier)
+            }
+            self.init(key, modifiers)
+        }
+    }
+
+    public struct Compatibility: Equatable, Sendable {
+        public var composition: Composition
+        public var commitKeys: [KeyTrigger: String]
+    }
+
+    public func compatibility(for bundleID: String?) -> Compatibility {
+        let app = bundleID.flatMap { apps[$0] } ?? AppPolicy()
+        return Compatibility(composition: app.composition, commitKeys: app.commitKeys)
     }
 
     public enum OnActivate: String, CaseIterable, Sendable {
