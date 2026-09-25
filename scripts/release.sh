@@ -16,6 +16,8 @@ die() {
     exit 1
 }
 
+echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "version must look like 1.2.3, got '$version'"
+
 cd "$root"
 [ "$(git branch --show-current)" = main ] || die "not on main"
 [ -z "$(git status --porcelain)" ] || die "uncommitted changes"
