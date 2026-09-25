@@ -1,0 +1,12 @@
+# SwiftPM build output and Xcode/SwiftPM workspace state
+/.build/
+/.swiftpm/
+
+# App bundle assembled by scripts/build-app.sh
+/build/
+
+# macOS
+.DS_Store
+
+# Local development-process notes (not published)
+/docs/

@@ -1,0 +1,3 @@
+CFBundleName = "kbd";
+"com.hongzio.inputmethod.kbd" = "kbd";
+"com.hongzio.inputmethod.kbd.hangul" = "kbd";
