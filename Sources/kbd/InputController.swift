@@ -133,6 +133,13 @@ final class InputController: IMKInputController {
 
         if event.keyCode == KeyCode.delete {
             guard let result = composer.backspace() else { return false }
+            if result.preedit.isEmpty, inline != nil {
+                // Nothing left to compose: the syllable is already real text right before the caret
+                // (checked above), so let the app delete it like any character. Replacing it with
+                // an empty string doesn't work everywhere (Telegram ignores it).
+                inline = nil
+                return false
+            }
             show(result, client)
             return true
         }
