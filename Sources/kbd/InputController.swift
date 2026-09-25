@@ -21,6 +21,14 @@ private struct InlineSyllable {
     var range: NSRange { NSRange(location: location, length: (text as NSString).length) }
 }
 
+private enum InlineCheck {
+    case intact
+    /// The caret is right after the syllable, but the client can't read it back.
+    case unreadable
+    /// The caret moved or the text differs.
+    case changed
+}
+
 @objc(KbdInputController)
 final class InputController: IMKInputController {
     /// The controller of the focused client, so mode changes from outside (IPC) can commit its composition.
@@ -34,6 +42,9 @@ final class InputController: IMKInputController {
     /// `composition = auto`: whether this client proved it can read back and replace text.
     /// nil until probed with a keystroke.
     private var inlineSupported: Bool?
+    /// Apps whose probe failed, so later focuses compose as marked text without probing again.
+    /// Successes are probed on every focus, since fields within an app can differ.
+    private static var inlineUnsupportedApps: Set<String> = []
 
     override func recognizedEvents(_ sender: Any!) -> Int {
         Int(NSEvent.EventTypeMask.keyDown.rawValue)
@@ -42,8 +53,8 @@ final class InputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         Self.active = self
         inline = nil
-        inlineSupported = nil
         let client = sender as? IMKTextInput
+        inlineSupported = Self.inlineUnsupportedApps.contains(client?.bundleIdentifier() ?? "") ? false : nil
         client?.overrideKeyboard(withKeyboardNamed: "com.apple.keylayout.ABC")
         ModeState.shared.activate(app: client?.bundleIdentifier())
     }
@@ -78,7 +89,7 @@ final class InputController: IMKInputController {
             composer = Self.makeComposer(config)
             composerGeneration = ConfigStore.shared.generation
         }
-        if inline != nil, !inlineIsIntact(client) {
+        if inline != nil, checkInline(client) != .intact {
             // The caret moved or the text changed (click, app edit): the syllable is already real
             // text, so just stop composing it.
             abandonInline()
@@ -217,11 +228,10 @@ final class InputController: IMKInputController {
             return
         }
         inline = InlineSyllable(location: location + (result.commit as NSString).length, text: result.preedit)
-        if !inlineIsIntact(client) {
-            // The client didn't apply the edit where we expected; don't risk replacing its text.
+        let check = checkInline(client)
+        if check != .intact {
             Log.main.notice("inline: client didn't keep the syllable, falling back to marked text")
-            inlineSupported = false
-            abandonInline()
+            fallBackToMarked(client, check)
         }
     }
 
@@ -237,22 +247,54 @@ final class InputController: IMKInputController {
             && client.attributedSubstring(from: marked)?.string == preedit
         inlineSupported = supported
         Log.main.notice("inline: probe app=\(client.bundleIdentifier() ?? "?", privacy: .public) supported=\(supported)")
-        guard supported else { return }
+        guard supported else { return rememberInlineUnsupported(client) }
 
         client.insertText(preedit, replacementRange: marked)
         inline = InlineSyllable(location: marked.location, text: preedit)
-        if !inlineIsIntact(client) {
-            inlineSupported = false
-            abandonInline()
+        let check = checkInline(client)
+        if check != .intact {
+            fallBackToMarked(client, check)
+            rememberInlineUnsupported(client)
         }
     }
 
-    /// The caret is right after the inline syllable and the document still contains it.
-    private func inlineIsIntact(_ client: IMKTextInput) -> Bool {
-        guard let inline else { return true }
+    private func rememberInlineUnsupported(_ client: IMKTextInput) {
+        inlineSupported = false
+        if let app = client.bundleIdentifier() { Self.inlineUnsupportedApps.insert(app) }
+    }
+
+    /// Whether the caret is right after the inline syllable and the document still contains it.
+    private func checkInline(_ client: IMKTextInput) -> InlineCheck {
+        guard let inline else { return .intact }
         let selection = client.selectedRange()
-        guard selection.location == NSMaxRange(inline.range), selection.length == 0 else { return false }
-        return client.attributedSubstring(from: inline.range)?.string == inline.text
+        let text = client.attributedSubstring(from: inline.range)?.string
+        let caretAfter = selection.location == NSMaxRange(inline.range) && selection.length == 0
+        if caretAfter && text == inline.text { return .intact }
+        Log.main.notice("""
+            inline: not intact app=\(client.bundleIdentifier() ?? "?", privacy: .public) \
+            expected=\(NSStringFromRange(inline.range), privacy: .public)"\(inline.text, privacy: .public)" \
+            selection=\(NSStringFromRange(selection), privacy: .public) \
+            text=\(text.map { "\"\($0)\"" } ?? "nil", privacy: .public) \
+            marked=\(NSStringFromRange(client.markedRange()), privacy: .public)
+            """)
+        return caretAfter && (text ?? "").isEmpty ? .unreadable : .changed
+    }
+
+    /// The client didn't confirm an inline insert: compose as marked text from here on. When only
+    /// reading back failed (Firefox, right after a commit), the caret shows the insert landed where
+    /// expected, so turn the syllable back into marked text and keep composing it. Otherwise don't
+    /// risk replacing the client's text: leave it as typed and end the syllable.
+    private func fallBackToMarked(_ client: IMKTextInput, _ check: InlineCheck) {
+        inlineSupported = false
+        guard let inline else { return }
+        guard check == .unreadable else { return abandonInline() }
+        self.inline = nil
+        client.setMarkedText(
+            inline.text,
+            selectionRange: NSRange(location: (inline.text as NSString).length, length: 0),
+            replacementRange: inline.range
+        )
+        Log.main.notice("inline: syllable turned back into marked text")
     }
 
     /// Stops composing an inline syllable; its text stays in the document as typed.
