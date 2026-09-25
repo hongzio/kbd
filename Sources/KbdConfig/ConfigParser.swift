@@ -85,6 +85,12 @@ public enum ConfigParser {
                     errors.append("\(at): 보낼 문자열이 비어 있습니다")
                     continue
                 }
+                // Escape text is inserted on its own, and IMK drops an insert of a single control
+                // character: the key would be consumed and nothing sent.
+                guard trigger.key != .escape || !Self.isSingleControlCharacter(text) else {
+                    errors.append("\(at): escape는 문자열을 글자와 따로 보내는데, macOS는 제어 문자 하나만 담긴 입력을 앱에 전달하지 않습니다. 예: \"\\u001B\\u001B\"")
+                    continue
+                }
                 guard policy.commitKeys[trigger] == nil else {
                     errors.append("\(at): 같은 키가 중복되었습니다")
                     continue
@@ -175,6 +181,11 @@ public enum ConfigParser {
 
     private static func path(_ codingPath: [CodingKey]) -> String {
         codingPath.map(\.stringValue).joined(separator: ".")
+    }
+
+    /// One C0 control character, e.g. "\u{1B}" or "\r".
+    private static func isSingleControlCharacter(_ text: String) -> Bool {
+        text.unicodeScalars.count == 1 && text.unicodeScalars.first!.value < 0x20
     }
 }
 

@@ -37,6 +37,7 @@ public enum ConfigTemplate {
     #       조합을 끝낸 키를 버리는 앱용 우회. 조합 중 이 키를 누르면 확정된 글자 뒤에 문자열을
     #       붙여 한 번에 보내고 키는 소비합니다. 키: [shift+][ctrl+][alt+][cmd+]enter|tab|escape
     #       escape는 문자열을 글자와 따로 보냅니다(neovim 등에서 ESC 키로 전달되도록).
+    #       그래서 제어 문자 하나만 적으면 오류입니다(macOS가 전달하지 않음).
     #
     # Ghostty: 터미널이라 바꿔치기가 불가능하고, 조합을 끝낸 키를 버립니다(ghostty#14272).
     [apps."com.mitchellh.ghostty"]

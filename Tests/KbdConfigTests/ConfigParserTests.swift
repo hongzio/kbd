@@ -130,7 +130,7 @@ struct ConfigParserTests {
         enter = "\r"
         "shift+enter" = "\n"
         "ctrl+shift+tab" = "x"
-        escape = "\u001B"
+        escape = "\u001B\u001B"
         """#).config
         let compat = config.compatibility(for: "com.example")
         #expect(compat.composition == .marked)
@@ -138,7 +138,7 @@ struct ConfigParserTests {
             .init(.enter): "\r",
             .init(.enter, .shift): "\n",
             .init(.tab, [.ctrl, .shift]): "x",
-            .init(.escape): "\u{1B}",
+            .init(.escape): "\u{1B}\u{1B}",
         ])
     }
 
@@ -158,6 +158,22 @@ struct ConfigParserTests {
                 && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."space""#) }
                 && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."shift+shift+tab""#) }
                 && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."tab": 보낼 문자열이 비어"#) }
+        }
+    }
+
+    @Test func escapeTextIsNotASingleControlCharacter() {
+        #expect {
+            try ConfigParser.parse(#"""
+            [apps."com.example".commit_keys]
+            escape = "\u001B"
+            "shift+escape" = "\u0007"
+            enter = "\r"
+            """#)
+        } throws: { error in
+            let messages = (error as! ConfigError).messages
+            return messages.count == 2
+                && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."escape": escape는"#) }
+                && messages.contains { $0.hasPrefix(#"apps."com.example".commit_keys."shift+escape": escape는"#) }
         }
     }
 
