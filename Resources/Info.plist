@@ -39,43 +39,5 @@
 		<string>Hang</string>
 		<string>Latn</string>
 	</array>
-	<key>ComponentInputModeDict</key>
-	<dict>
-		<key>tsInputModeListKey</key>
-		<dict>
-			<key>com.hongzio.inputmethod.kbd.hangul</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>com.hongzio.inputmethod.kbd.hangul</string>
-				<key>TISIconLabels</key>
-				<dict>
-					<key>Primary</key>
-					<string>KBD</string>
-				</dict>
-				<key>TISIntendedLanguage</key>
-				<string>ko</string>
-				<key>tsInputModeScriptKey</key>
-				<string>smKorean</string>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>kbd.tiff</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>kbd.tiff</string>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<true/>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Hang</string>
-				</array>
-			</dict>
-		</dict>
-		<key>tsVisibleInputModeOrderedArrayKey</key>
-		<array>
-			<string>com.hongzio.inputmethod.kbd.hangul</string>
-		</array>
-	</dict>
 </dict>
 </plist>
