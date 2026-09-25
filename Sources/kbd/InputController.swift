@@ -47,7 +47,7 @@ final class InputController: IMKInputController {
     private static var inlineUnsupportedApps: Set<String> = []
 
     override func recognizedEvents(_ sender: Any!) -> Int {
-        Int(NSEvent.EventTypeMask.keyDown.rawValue)
+        Int(NSEvent.EventTypeMask([.keyDown, .leftMouseDown]).rawValue)
     }
 
     override func activateServer(_ sender: Any!) {
@@ -75,8 +75,18 @@ final class InputController: IMKInputController {
     }
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
-        return handleKeyDown(event, client: client)
+        guard let event, let client = sender as? IMKTextInput else { return false }
+        switch event.type {
+        case .keyDown:
+            return handleKeyDown(event, client: client)
+        case .leftMouseDown:
+            // Commit here and report the click unhandled, so the app still acts on it. Otherwise
+            // the system answers for us, and apps like Firefox drop a click that ends a composition.
+            finishComposition(client)
+            return false
+        default:
+            return false
+        }
     }
 
     // MARK: - Key handling
