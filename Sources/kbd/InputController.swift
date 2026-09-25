@@ -294,7 +294,17 @@ final class InputController: IMKInputController {
         // that key along with the committed syllable, in this same key event.
         if let event, let trigger = Self.trigger(event),
            let keyText = compatibility(client).commitKeys[trigger] {
-            client.insertText(text + keyText, replacementRange: noReplacement)
+            if trigger.key == .escape {
+                // Separately, so ESC arrives as its own key after the text. Ghostty encodes each
+                // insert against the key, and in kitty keyboard mode (neovim) sends only the ESC
+                // key when the text has a control character: "가\u{1B}" would lose the 가.
+                // IMK drops an insert of a single control character, hence "\u{1B}\u{1B}" in the
+                // config template.
+                client.insertText(text, replacementRange: noReplacement)
+                client.insertText(keyText, replacementRange: noReplacement)
+            } else {
+                client.insertText(text + keyText, replacementRange: noReplacement)
+            }
             return true
         }
         client.insertText(text, replacementRange: noReplacement)

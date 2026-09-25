@@ -19,7 +19,7 @@ struct ConfigParserTests {
         #expect(!parsed.config.escapeEnabled(for: "ru.keepcoder.Telegram"))
         #expect(parsed.config.compatibility(for: "com.mitchellh.ghostty") == .init(
             composition: .marked,
-            commitKeys: [.init(.enter): "\r", .init(.enter, .shift): "\n", .init(.tab): "\t", .init(.escape): "\u{1B}"]
+            commitKeys: [.init(.enter): "\r", .init(.enter, .shift): "\n", .init(.tab): "\t", .init(.escape): "\u{1B}\u{1B}"]
         ))
     }
 

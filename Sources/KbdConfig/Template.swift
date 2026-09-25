@@ -36,6 +36,7 @@ public enum ConfigTemplate {
     #   commit_keys = { "키" = "문자열", ... }
     #       조합을 끝낸 키를 버리는 앱용 우회. 조합 중 이 키를 누르면 확정된 글자 뒤에 문자열을
     #       붙여 한 번에 보내고 키는 소비합니다. 키: [shift+][ctrl+][alt+][cmd+]enter|tab|escape
+    #       escape는 문자열을 글자와 따로 보냅니다(neovim 등에서 ESC 키로 전달되도록).
     #
     # Ghostty: 터미널이라 바꿔치기가 불가능하고, 조합을 끝낸 키를 버립니다(ghostty#14272).
     [apps."com.mitchellh.ghostty"]
@@ -45,7 +46,11 @@ public enum ConfigTemplate {
     enter = "\r"
     "shift+enter" = "\n"     # 줄바꿈(LF): Claude Code 등에서 제출 없이 줄바꿈
     tab = "\t"
-    escape = "\u001B"
+    # ESC는 확정된 글자와 따로 보냅니다. 글자에 붙여 보내면 neovim처럼 kitty 키보드 프로토콜을
+    # 쓰는 프로그램에서 Ghostty가 글자를 버리기 때문입니다.
+    # 값을 두 번 반복한 것은 macOS가 제어 문자 하나만 담긴 입력을 전달하지 않기 때문입니다.
+    # Ghostty는 제어 문자로 시작하는 입력을 ESC 키 한 번으로 보내므로, 실제로는 ESC가 한 번만 갑니다.
+    escape = "\u001B\u001B"
 
     [apps."com.googlecode.iterm2"]
     escape = true
