@@ -13,7 +13,6 @@ final class HIDRemapper {
     private static let srcKey = "HIDKeyboardModifierMappingSrc"
     private static let dstKey = "HIDKeyboardModifierMappingDst"
 
-    private let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
     private var mapping: (src: UInt64, dst: UInt64)?
     private var notifyPort: IONotificationPortRef?
     private var iterator: io_iterator_t = 0
@@ -32,6 +31,7 @@ final class HIDRemapper {
     /// Removes only our entry, leaving other tools' mappings intact.
     func remove() {
         guard let (src, dst) = mapping else { return }
+        var removed: [String] = []
         forEachKeyboard { service in
             let mappings = Self.mappings(of: service)
             let kept = mappings.filter {
@@ -39,22 +39,28 @@ final class HIDRemapper {
             }
             guard kept.count != mappings.count else { return }
             IOHIDServiceClientSetProperty(service, Self.mappingKey, kept as CFArray)
+            removed.append(Self.describe(service))
         }
         mapping = nil
-        Log.main.notice("HID remap removed")
+        Log.main.notice("HID remap removed from [\(removed.joined(separator: ", "), privacy: .public)]")
     }
 
     private func apply() {
         guard let (src, dst) = mapping else { return }
+        var applied: [String] = []
         forEachKeyboard { service in
             var mappings = Self.mappings(of: service).filter { $0[Self.srcKey]?.uint64Value != src }
             mappings.append([Self.srcKey: NSNumber(value: src), Self.dstKey: NSNumber(value: dst)])
-            IOHIDServiceClientSetProperty(service, Self.mappingKey, mappings as CFArray)
+            let ok = IOHIDServiceClientSetProperty(service, Self.mappingKey, mappings as CFArray)
+            applied.append(Self.describe(service) + (ok ? "" : " (failed)"))
         }
-        Log.main.notice("HID remap applied 0x\(String(src, radix: 16), privacy: .public) -> 0x\(String(dst, radix: 16), privacy: .public)")
+        Log.main.notice("HID remap applied 0x\(String(src, radix: 16), privacy: .public) -> 0x\(String(dst, radix: 16), privacy: .public) on [\(applied.joined(separator: ", "), privacy: .public)]")
     }
 
     private func forEachKeyboard(_ body: (IOHIDServiceClient) -> Void) {
+        // A client never lists services added after it was created, so a long-lived one misses
+        // keyboards that come and go (Karabiner re-creates its virtual keyboard on wake and login).
+        let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
         guard let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] else { return }
         for service in services
         where IOHIDServiceClientConformsTo(service, UInt32(kHIDPage_GenericDesktop), UInt32(kHIDUsage_GD_Keyboard)) != 0 {
@@ -64,6 +70,13 @@ final class HIDRemapper {
 
     private static func mappings(of service: IOHIDServiceClient) -> [[String: NSNumber]] {
         IOHIDServiceClientCopyProperty(service, mappingKey) as? [[String: NSNumber]] ?? []
+    }
+
+    /// "Product 0x<registry id>", matching `hidutil list`.
+    private static func describe(_ service: IOHIDServiceClient) -> String {
+        let product = IOHIDServiceClientCopyProperty(service, kIOHIDProductKey as CFString) as? String ?? "?"
+        let id = (IOHIDServiceClientGetRegistryID(service) as? NSNumber)?.uint64Value ?? 0
+        return "\(product) 0x\(String(id, radix: 16))"
     }
 
     private func observeKeyboardArrivals() {
