@@ -40,9 +40,14 @@ final class InputController: IMKInputController {
     /// Set while composing inline; nil when composing as marked text (or not composing).
     private var inline: InlineSyllable?
     /// `composition = auto`: whether this client proved it can read back and replace text.
-    /// nil until probed with a keystroke.
+    /// nil until known: probed at the start of each syllable.
     private var inlineSupported: Bool?
-    /// Apps whose probe failed, so later focuses compose as marked text without probing again.
+    /// Whether this focus already logged a failed probe, so apps that always fail it (Electron)
+    /// don't log every syllable typed.
+    private var loggedProbeFailure = false
+    /// Apps where an inline insert couldn't be verified, so later focuses compose as marked text
+    /// without probing again. A failed read-back before the insert isn't remembered: it changes
+    /// nothing, and can come from one field or moment (focus still moving to the text view).
     /// Successes are probed on every focus, since fields within an app can differ.
     private static var inlineUnsupportedApps: Set<String> = []
 
@@ -55,6 +60,7 @@ final class InputController: IMKInputController {
         inline = nil
         let client = sender as? IMKTextInput
         inlineSupported = Self.inlineUnsupportedApps.contains(client?.bundleIdentifier() ?? "") ? false : nil
+        loggedProbeFailure = false
         client?.overrideKeyboard(withKeyboardNamed: "com.apple.keylayout.ABC")
         ModeState.shared.activate(app: client?.bundleIdentifier())
     }
@@ -140,7 +146,7 @@ final class InputController: IMKInputController {
                 inline = nil
                 return false
             }
-            show(result, client)
+            show(result, client, newSyllable: false)
             return true
         }
 
@@ -148,12 +154,13 @@ final class InputController: IMKInputController {
             // Arrows, function keys, etc.
             return finishComposition(client, endingKey: event)
         }
+        let wasEmpty = composer.isEmpty
         let result = composer.process(key)
         guard result.handled else {
             // Not a layout key (space, digits, Enter...): the engine flushed the syllable.
             return deliver(result.commit, client, endingKey: event)
         }
-        show(result, client)
+        show(result, client, newSyllable: wasEmpty || !result.commit.isEmpty)
         return true
     }
 
@@ -187,7 +194,8 @@ final class InputController: IMKInputController {
 
     // MARK: - Showing the composition
 
-    private func show(_ result: EngineResult, _ client: IMKTextInput) {
+    /// `newSyllable`: the preedit is a syllable this keystroke started.
+    private func show(_ result: EngineResult, _ client: IMKTextInput, newSyllable: Bool) {
         switch compatibility(client).composition {
         case .marked:
             showMarked(result, client)
@@ -201,7 +209,7 @@ final class InputController: IMKInputController {
                 showMarked(result, client)
             case nil:
                 showMarked(result, client)
-                probeInline(client)
+                if newSyllable { probeInline(client) }
             }
         }
     }
@@ -254,17 +262,26 @@ final class InputController: IMKInputController {
 
     /// With the syllable just shown as marked text, checks that the client reports its range and
     /// reads it back; if so, turns it into inline text right away. Terminals fail this (Ghostty
-    /// returns the mouse selection for any range), so they stay on marked text.
+    /// returns the mouse selection for any range), so they stay on marked text. A failure keeps
+    /// this syllable marked and leaves the next one to probe again.
     private func probeInline(_ client: IMKTextInput) {
         let preedit = composer.preedit
         guard !preedit.isEmpty else { return }
         let marked = client.markedRange()
-        let supported = marked.location != NSNotFound
-            && marked.length == (preedit as NSString).length
-            && client.attributedSubstring(from: marked)?.string == preedit
-        inlineSupported = supported
-        Log.main.notice("inline: probe app=\(client.bundleIdentifier() ?? "?", privacy: .public) supported=\(supported)")
-        guard supported else { return rememberInlineUnsupported(client) }
+        let text = marked.location == NSNotFound ? nil : client.attributedSubstring(from: marked)?.string
+        guard marked.length == (preedit as NSString).length, text == preedit else {
+            if !loggedProbeFailure {
+                loggedProbeFailure = true
+                Log.main.notice("""
+                    inline: probe app=\(client.bundleIdentifier() ?? "?", privacy: .public) supported=false \
+                    preedit="\(preedit, privacy: .public)" marked=\(NSStringFromRange(marked), privacy: .public) \
+                    text=\(text.map { "\"\($0)\"" } ?? "nil", privacy: .public)
+                    """)
+            }
+            return
+        }
+        inlineSupported = true
+        Log.main.notice("inline: probe app=\(client.bundleIdentifier() ?? "?", privacy: .public) supported=true")
 
         client.insertText(preedit, replacementRange: marked)
         inline = InlineSyllable(location: marked.location, text: preedit)
